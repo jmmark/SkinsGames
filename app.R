@@ -1,28 +1,22 @@
-#
-# This is a Shiny web application. You can run the application by clicking
-# the 'Run App' button above.
-#
-# Find out more about building applications with Shiny here:
-#
-#    http://shiny.rstudio.com/
-#
+# shiny app for computing skins winners!
 
 library(shiny)
 
-# Define UI for application that draws a histogram
+# Define UI for application that finds skins winners
 ui <- fluidPage(
    
    # Application title
-   titlePanel("Old Faithful Geyser Data"),
+   titlePanel("Giant Skins"),
    
    # Sidebar with a slider input for number of bins 
    sidebarLayout(
       sidebarPanel(
-         sliderInput("bins",
-                     "Number of bins:",
-                     min = 1,
-                     max = 50,
-                     value = 30)
+        h4("Game Setup"),
+         sliderInput("index",
+                     "% of Handicap Index",
+                     min = 0,
+                     max = 1,
+                     value = 0.5)
       ),
       
       # Show a plot of the generated distribution
