@@ -2,10 +2,7 @@
 
 library(shiny)
 library(rhandsontable)
-
-df1 = data.frame(tees = c('White','Blue'), 
-                 slope = c(113,113), 
-                 rating = c(72, 72))
+a
 
 # Define UI for application that finds skins winners
 ui <- fluidPage(
@@ -46,7 +43,7 @@ ui <- fluidPage(
       
       # Show a plot of the generated distribution
       mainPanel(
-         h4("WUBBALUBBADUBDUB")
+         rHandsontableOutput("nets")
       )
    )
 )
@@ -57,8 +54,8 @@ server <- function(input, output) {
    output$tees <- renderRHandsontable({
       if (is.null(input$tees)) {
         DF <- data.frame(Tees = c("White","Blue"),
-                        Slope = c(113, 113),
-                        Rating = c(72.0, 72.0))
+                        Slope = c(121, 126),
+                        Rating = c(70.5, 72.9))
       } else {
         DF <- hot_to_r(input$tees)
       }
@@ -67,8 +64,8 @@ server <- function(input, output) {
    
    output$handicaps <- renderRHandsontable({
      if (is.null(input$handicaps)) {
-       DF <- t(data.frame(Index = c(1,3,5,7,9,11,13,15,17,
-                                 2,4,6,8,10,12,14,16,18),
+       DF <- t(data.frame(Index = c(13,3,9,1,15,5,11,7,17,
+                                 4,12,16,14,6,10,8,18,2),
                          row.names = 1:18))
      } else {
        DF <- hot_to_r(input$handicaps)
@@ -103,6 +100,24 @@ server <- function(input, output) {
        DF <- hot_to_r(input$scores)
      }
      rhandsontable(DF) %>% hot_context_menu(allowColEdit = FALSE)
+   })
+   
+   output$nets <- renderRHandsontable({
+     
+     if (!is.null(input$scores))  {gross <- hot_to_r(input$scores)
+       tees <- hot_to_r(input$tees)
+       tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating))
+       indices <- hot_to_r(input$handicaps)
+       gross <- merge(gross,tees)
+       gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + tees$diff_tee_adjust
+       gross$a_CH <- gross$CH * input$index
+       if (input$partial != 'Yes') {
+         gross$a_CH <- round(gross$a_CH)
+       }
+     } else {
+       gross <- data.frame(X = c(1,2))
+     }
+     rhandsontable(gross)
    })
 }
 
