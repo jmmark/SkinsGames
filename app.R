@@ -2,7 +2,8 @@
 
 library(shiny)
 library(rhandsontable)
-a
+
+holeNames <- paste('Hole',1:18)
 
 # Define UI for application that finds skins winners
 ui <- fluidPage(
@@ -66,7 +67,7 @@ server <- function(input, output) {
      if (is.null(input$handicaps)) {
        DF <- t(data.frame(Index = c(13,3,9,1,15,5,11,7,17,
                                  4,12,16,14,6,10,8,18,2),
-                         row.names = 1:18))
+                         row.names = holeNames))
      } else {
        DF <- hot_to_r(input$handicaps)
      }
@@ -78,24 +79,25 @@ server <- function(input, output) {
        DF <- data.frame(Player = c("Player A","Player B"),
                         GHIN = c(3.2, 12.1),
                         Tees = c('Blue','White'),
-                        "1" = c(3,4),
-                        "2" = c(5,6),
-                        "3" = c(3,4),
-                        "4" = c(3,4),
-                        "5" = c(3,4),
-                        "6" = c(3,4),
-                        "7" = c(3,4),
-                        "8" = c(3,4),
-                        "9" = c(3,4),
-                        "10" = c(3,4),
-                        "11" = c(3,4),
-                        "12" = c(3,4),
-                        "13" = c(3,4),
-                        "14" = c(3,4),
-                        "15" = c(3,4),
-                        "16" = c(3,4),
-                        "17" = c(3,4),
-                        "18" = c(3,4))
+                        c(3,4),
+                        c(5,6),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4),
+                        c(3,4))
+       colnames(DF) <- c('Player','GHIN','Tees',holeNames)
      } else {
        DF <- hot_to_r(input$scores)
      }
@@ -111,13 +113,15 @@ server <- function(input, output) {
        gross <- merge(gross,tees)
        gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + tees$diff_tee_adjust
        gross$a_CH <- gross$CH * input$index
+       mask <- gross$a_CH <= indices
        if (input$partial != 'Yes') {
          gross$a_CH <- round(gross$a_CH)
        }
      } else {
-       gross <- data.frame(X = c(1,2))
+       gross <- data.frame(X = "Incomplete Setup")
+       mask <- gross
      }
-     rhandsontable(gross)
+     rhandsontable(mask)
    })
 }
 
