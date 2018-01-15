@@ -5,6 +5,26 @@ library(rhandsontable)
 
 holeNames <- paste('Hole',1:18)
 
+strokes <- function(hcp, ch, partial, gross_trump) {
+  # calculate the number of strokes
+  # no more than double pops allowed
+  adj <- 0
+  if (hcp <= ch) { # need to allocate strokes
+    adj <- 1
+    if (hcp <= ch - 18) { # need to allocate double pop
+      adj <- adj + 1
+    } else if (hcp == ceiling(ch - 18) & partial) { # second pop is a partial
+      adj <- adj + (ch - floor(ch))
+    }
+  } else if (hcp == ceiling(ch) & partial) { # first pop is a partial
+    adj <- (ch - floor(ch))
+  }
+  if (adj > 0 & gross_trump) { # adjust down if gross wins
+    adj <- adj - .001
+  }
+  return(adj)
+}
+
 # Define UI for application that finds skins winners
 ui <- fluidPage(
    
@@ -113,10 +133,21 @@ server <- function(input, output) {
        gross <- merge(gross,tees)
        gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + tees$diff_tee_adjust
        gross$a_CH <- gross$CH * input$index
-       mask <- gross$a_CH <= indices
+       n_players <- length(gross$a_CH)
+       mask <- matrix(nrow = n_players, ncol = 18)
+       
        if (input$partial != 'Yes') {
          gross$a_CH <- round(gross$a_CH)
        }
+       
+       for (i in 1:n_players) {
+         for (j in 1:18) {
+           mask[i,j] <- strokes(gross$a_CH[i], indices[,j],
+                                input$partial == 'Yes', 
+                                input$natural == 'Yes')
+         }
+       }
+       
      } else {
        gross <- data.frame(X = "Incomplete Setup")
        mask <- gross
