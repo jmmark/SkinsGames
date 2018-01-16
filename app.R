@@ -25,6 +25,15 @@ strokes <- function(hcp, ch, partial, gross_trump) {
   return(adj)
 }
 
+find_skins <- function(scores) {
+  # if skin exists (one lowest score), return the index, else return null
+  if (sum(scores == min(scores)) > 1) {
+    return(NULL)
+  } else {
+    return(which(scores == min(scores)))
+  }
+}
+
 # Define UI for application that finds skins winners
 ui <- fluidPage(
    
@@ -64,7 +73,8 @@ ui <- fluidPage(
       
       # Show a plot of the generated distribution
       mainPanel(
-         rHandsontableOutput("nets")
+         tableOutput("nets"),
+         tableOutput("skins")
       )
    )
 )
@@ -124,9 +134,9 @@ server <- function(input, output) {
      rhandsontable(DF) %>% hot_context_menu(allowColEdit = FALSE)
    })
    
-   output$nets <- renderRHandsontable({
-     
-     if (!is.null(input$scores))  {gross <- hot_to_r(input$scores)
+   net_results <- reactive({
+     if (!is.null(input$scores))  {
+       gross <- hot_to_r(input$scores)
        tees <- hot_to_r(input$tees)
        tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating))
        indices <- hot_to_r(input$handicaps)
@@ -142,17 +152,89 @@ server <- function(input, output) {
        
        for (i in 1:n_players) {
          for (j in 1:18) {
-           mask[i,j] <- strokes(gross$a_CH[i], indices[,j],
+           mask[i,j] <- strokes(indices[,j], gross$a_CH[i],
                                 input$partial == 'Yes', 
                                 input$natural == 'Yes')
          }
        }
        
+       nets <- gross
+       nets[,holeNames] <- gross[,holeNames] - mask 
+       
      } else {
        gross <- data.frame(X = "Incomplete Setup")
        mask <- gross
+       nets <- mask
      }
-     rhandsontable(mask)
+     nets
+   })
+   
+   output$nets <- renderTable({
+     
+     # if (!is.null(input$scores))  {
+     #   gross <- hot_to_r(input$scores)
+     #   tees <- hot_to_r(input$tees)
+     #   tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating))
+     #   indices <- hot_to_r(input$handicaps)
+     #   gross <- merge(gross,tees)
+     #   gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + tees$diff_tee_adjust
+     #   gross$a_CH <- gross$CH * input$index
+     #   n_players <- length(gross$a_CH)
+     #   mask <- matrix(nrow = n_players, ncol = 18)
+     #   
+     #   if (input$partial != 'Yes') {
+     #     gross$a_CH <- round(gross$a_CH)
+     #   }
+     #   
+     #   for (i in 1:n_players) {
+     #     for (j in 1:18) {
+     #       mask[i,j] <- strokes(indices[,j], gross$a_CH[i],
+     #                            input$partial == 'Yes', 
+     #                            input$natural == 'Yes')
+     #     }
+     #   }
+     #   
+     #   nets <- gross
+     #   nets[,holeNames] <- gross[,holeNames] - mask 
+     #   
+     # } else {
+     #   gross <- data.frame(X = "Incomplete Setup")
+     #   mask <- gross
+     #   nets <- mask
+     # }
+     net_results()
+   }, digits = 3)
+   
+   output$skins <- renderTable({
+     # if (ncol(net_results() == 1)) {
+     #   "Inputs Required"
+     # } else {
+     #   "Inputs Required\nInputsRequired"
+     # }
+     nr <- net_results()
+     if (ncol(nr) > 1) {
+       skins <- data.frame(Player = character(),
+                          Hole = character(),
+                          "Net Score" = numeric(),
+                          stringsAsFactors = FALSE)
+       for (h in holeNames) {
+         idx <- find_skins(nr[[h]])
+         if (!is.null(idx)) {
+           s2 <- data.frame(Player = nr$Player[idx],
+                            Hole = h,
+                            "Net Score" = nr[[h]][idx],
+                            stringsAsFactors = FALSE)
+           skins <- rbind(skins, s2)
+            
+         }
+       }
+       if (nrow(skins) == 0) {
+         skins[1,1] <- 'No Skins'
+       }
+     } else {
+       skins <- data.frame(x = 'Setup Required')
+     }
+     skins
    })
 }
 
