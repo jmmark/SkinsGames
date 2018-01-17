@@ -73,6 +73,7 @@ ui <- fluidPage(
       
       # Show a plot of the generated distribution
       mainPanel(
+        actionButton('calc','Calculate Skins'),
          tableOutput("nets"),
          tableOutput("skins"),
          textOutput("winners")
@@ -82,6 +83,8 @@ ui <- fluidPage(
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
+  
+  res <- reactiveValues(net_results = NULL, skin_results = NULL)
    
    output$tees <- renderRHandsontable({
       if (is.null(input$tees)) {
@@ -138,7 +141,7 @@ server <- function(input, output) {
        hot_col(4:21, format = '0') %>% hot_context_menu(allowColEdit = FALSE)
    })
    
-   net_results <- reactive({
+   observeEvent(input$calc, {
      if (!is.null(input$scores))  {
        gross <- hot_to_r(input$scores)
        tees <- hot_to_r(input$tees)
@@ -164,18 +167,13 @@ server <- function(input, output) {
        
        nets <- gross
        nets[,holeNames] <- gross[,holeNames] - mask 
-       
+       res$net_results <- nets
      } else {
-       gross <- data.frame(X = "Incomplete Setup")
-       mask <- gross
-       nets <- mask
+       res$net_results <- NULL
      }
-     nets
-   })
-   
-   skins_table <- reactive({
-     nr <- net_results()
-     if (ncol(nr) > 1) {
+     
+     nr <- res$net_results
+     if (!is.null(nr)) {
        skins <- data.frame(Player = character(),
                            Hole = character(),
                            "Net Score" = numeric(),
@@ -195,23 +193,27 @@ server <- function(input, output) {
          skins[1,1] <- 'No Skins'
        }
      } else {
-       skins <- data.frame(x = 'Setup Required')
+       skins <- NULL
      }
-     skins
+     res$skin_results <- skins
+     
    })
    
+
+   
    output$nets <- renderTable({
-     net_results()
+     res$net_results
    }, digits = 3)
    
    output$skins <- renderTable({
      
-     skins_table()
+     res$skin_results
+     
    }, digits = 0)
    
    output$winners <- renderText({
-     st <- skins_table()
-     if (ncol(st) == 1) {
+     st <- res$skin_results
+     if (is.null(st)) {
        return("Game Setup Incomplete")
      }
      
