@@ -74,7 +74,8 @@ ui <- fluidPage(
       # Show a plot of the generated distribution
       mainPanel(
          tableOutput("nets"),
-         tableOutput("skins")
+         tableOutput("skins"),
+         textOutput("winners")
       )
    )
 )
@@ -86,7 +87,8 @@ server <- function(input, output) {
       if (is.null(input$tees)) {
         DF <- data.frame(Tees = c("White","Blue"),
                         Slope = c(121, 126),
-                        Rating = c(70.5, 72.9))
+                        Rating = c(70.5, 72.9),
+                        stringsAsFactors = FALSE)
       } else {
         DF <- hot_to_r(input$tees)
       }
@@ -126,12 +128,14 @@ server <- function(input, output) {
                         c(3,4),
                         c(3,4),
                         c(3,4),
-                        c(3,4))
+                        c(3,4),
+                        stringsAsFactors = FALSE)
        colnames(DF) <- c('Player','GHIN','Tees',holeNames)
      } else {
        DF <- hot_to_r(input$scores)
      }
-     rhandsontable(DF) %>% hot_context_menu(allowColEdit = FALSE)
+     rhandsontable(DF) %>% hot_col(2, format = '0.0') %>% 
+       hot_col(4:21, format = '0') %>% hot_context_menu(allowColEdit = FALSE)
    })
    
    net_results <- reactive({
@@ -169,54 +173,13 @@ server <- function(input, output) {
      nets
    })
    
-   output$nets <- renderTable({
-     
-     # if (!is.null(input$scores))  {
-     #   gross <- hot_to_r(input$scores)
-     #   tees <- hot_to_r(input$tees)
-     #   tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating))
-     #   indices <- hot_to_r(input$handicaps)
-     #   gross <- merge(gross,tees)
-     #   gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + tees$diff_tee_adjust
-     #   gross$a_CH <- gross$CH * input$index
-     #   n_players <- length(gross$a_CH)
-     #   mask <- matrix(nrow = n_players, ncol = 18)
-     #   
-     #   if (input$partial != 'Yes') {
-     #     gross$a_CH <- round(gross$a_CH)
-     #   }
-     #   
-     #   for (i in 1:n_players) {
-     #     for (j in 1:18) {
-     #       mask[i,j] <- strokes(indices[,j], gross$a_CH[i],
-     #                            input$partial == 'Yes', 
-     #                            input$natural == 'Yes')
-     #     }
-     #   }
-     #   
-     #   nets <- gross
-     #   nets[,holeNames] <- gross[,holeNames] - mask 
-     #   
-     # } else {
-     #   gross <- data.frame(X = "Incomplete Setup")
-     #   mask <- gross
-     #   nets <- mask
-     # }
-     net_results()
-   }, digits = 3)
-   
-   output$skins <- renderTable({
-     # if (ncol(net_results() == 1)) {
-     #   "Inputs Required"
-     # } else {
-     #   "Inputs Required\nInputsRequired"
-     # }
+   skins_table <- reactive({
      nr <- net_results()
      if (ncol(nr) > 1) {
        skins <- data.frame(Player = character(),
-                          Hole = character(),
-                          "Net Score" = numeric(),
-                          stringsAsFactors = FALSE)
+                           Hole = character(),
+                           "Net Score" = numeric(),
+                           stringsAsFactors = FALSE)
        for (h in holeNames) {
          idx <- find_skins(nr[[h]])
          if (!is.null(idx)) {
@@ -225,7 +188,7 @@ server <- function(input, output) {
                             "Net Score" = nr[[h]][idx],
                             stringsAsFactors = FALSE)
            skins <- rbind(skins, s2)
-            
+           
          }
        }
        if (nrow(skins) == 0) {
@@ -235,6 +198,24 @@ server <- function(input, output) {
        skins <- data.frame(x = 'Setup Required')
      }
      skins
+   })
+   
+   output$nets <- renderTable({
+     net_results()
+   }, digits = 3)
+   
+   output$skins <- renderTable({
+     
+     skins_table()
+   }, digits = 0)
+   
+   output$winners <- renderText({
+     st <- skins_table()
+     if (ncol(st) == 1) {
+       return("Game Setup Incomplete")
+     }
+     
+     return(paste("A total of ",nrow(st), "skins won"))
    })
 }
 
