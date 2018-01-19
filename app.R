@@ -44,6 +44,7 @@ colnames(scoresStart) <- c('Player','GHIN','Tees',holeNames)
 strokes <- function(hcp, ch, partial, gross_trump) {
   # calculate the number of strokes
   # no more than double pops allowed
+  #print(paste(hcp, ch, partial, gross_trump))
   adj <- 0
   if (hcp <= ch) { # need to allocate strokes
     adj <- 1
@@ -192,7 +193,7 @@ server <- function(input, output) {
      if (!is.null(input$scores)) res$scores <- hot_to_r(input$scores)
      gross <- res$scores
      tees <- res$tees
-     tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating))
+     tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating, na.rm = TRUE))
      indices <- res$indices
      gross <- merge(gross,tees)
      gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + gross$diff_tee_adjust
@@ -204,6 +205,7 @@ server <- function(input, output) {
        gross$a_CH <- round(gross$a_CH)
      }
      
+     #print(gross)
      for (i in 1:n_players) {
        for (j in 1:18) {
          mask[i,j] <- strokes(indices[,j], gross$a_CH[i],
@@ -247,6 +249,20 @@ server <- function(input, output) {
    observe({
      if (is.null(input$scores)) return(NULL)
      if (!identical(hot_to_r(input$scores),res$scores)) {
+       res$ready <- FALSE
+     }
+   })
+   
+   observe({
+     if (is.null(input$tees)) return(NULL)
+     if (!identical(hot_to_r(input$tees),res$tees)) {
+       res$ready <- FALSE
+     }
+   })
+   
+   observe({
+     if (is.null(input$handicaps)) return(NULL)
+     if (!identical(hot_to_r(input$handicaps),res$indices)) {
        res$ready <- FALSE
      }
    })
