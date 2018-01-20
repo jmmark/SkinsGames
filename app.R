@@ -5,7 +5,7 @@ library(rhandsontable)
 
 # setup defaults
 
-holeNames <- paste('Hole',1:18)
+holeNames <- paste('Hole',1:18, sep = ".")
 
 teesStart <- data.frame(Tees = c("White","Blue"),
                         Slope = c(121, 126),
@@ -84,7 +84,7 @@ ui <- fluidPage(
         tabsetPanel(
           tabPanel("Game Setup",
             sliderInput("index",
-                        "% of Handicap Index",
+                        "% of Course Handicap",
                         min = 0,
                         max = 1,
                         value = 0.5),
@@ -95,16 +95,37 @@ ui <- fluidPage(
             radioButtons("natural",
                          'Natural Beats Net?',
                          choices = list('Yes','No'),
-                         selected = 'No')
+                         selected = 'No'),
+            br(),
+            br(),
+            h4("Instructions"),
+            p("Choose the structure of the skins game"),
+            br(),
+            p("All players receive the given share of their course handicap"),
+            br(),
+            p("If \'Allocate Partial Strokes\' is selected, players receive 
+              only a share of their highest handicap hole.  For example, 
+              a player with a course handicap of 9 and 50% strokes would 
+              receive 0.5 strokes on the #5 index hole, otherwise it is rounded"),
+            br(),
+            p("If \'Natural Beats Net\' is selected, net scores cannot tie gross scores")
           ),
           tabPanel("Tees Setup",
             rHandsontableOutput("tees"),
-            br()
+            br(),
+            h4("Instructions"),
+            br(),
+            p("Add slope and rating information for each set of tees
+              players in the game will be using.  Course handicaps
+              will be calculated accordingly, including adjustment for
+              different sets of tees")
             #actionButton('tees_update','Update Tees')
           ),
           tabPanel("Hole Indices",
             rHandsontableOutput("handicaps"),
-            br()
+            br(),
+            h4("Instructions"),
+            p("Enter the handicap numbers for each of the 18 holes at the course being used")
             #actionButton('indices_update','Update Indices')
           ),
           tabPanel("Player Scores",
@@ -120,7 +141,8 @@ ui <- fluidPage(
           ),
           tabPanel("Skins Results",
                    actionButton('calc','Calculate Skins'),
-                    tableOutput("nets"),
+                   br(),
+                    #tableOutput("nets"),
                     tableOutput("skins"),
                     textOutput("winners")
                    )
@@ -193,9 +215,10 @@ server <- function(input, output) {
      if (!is.null(input$scores)) res$scores <- hot_to_r(input$scores)
      gross <- res$scores
      tees <- res$tees
-     tees$diff_tee_adjust <- round(tees$Rating - min(tees$Rating, na.rm = TRUE))
+     
      indices <- res$indices
      gross <- merge(gross,tees)
+     gross$diff_tee_adjust <- round(gross$Rating - min(gross$Rating, na.rm = TRUE))
      gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + gross$diff_tee_adjust
      gross$a_CH <- gross$CH * input$index
      n_players <- length(gross$a_CH)
@@ -248,7 +271,9 @@ server <- function(input, output) {
    
    observe({
      if (is.null(input$scores)) return(NULL)
+     #print(fromJSON(input$scores))
      if (!identical(hot_to_r(input$scores),res$scores)) {
+       
        res$ready <- FALSE
      }
    })
