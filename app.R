@@ -3,9 +3,74 @@
 library(shiny)
 library(rhandsontable)
 
+# address bug in hot_to_r:
+
+
+
+new_toR <- function (data, changes, params, ...) {
+  rClass = params$rClass
+  colHeaders = unlist(params$rColHeaders)
+  rowHeaders = unlist(params$rRowHeaders)
+  rColClasses = unlist(params$rColClasses)[colHeaders]
+  out = data
+  if (changes$event == "afterCreateRow") {
+    rowHeaders = seq_len(length(out))
+  }
+  else if (changes$event == "afterRemoveRow") {
+    inds = seq(changes$ind + 1, length.out = changes$ct)
+    rowHeaders = rowHeaders[-inds]
+  }
+  else if (changes$event == "afterRemoveCol") {
+    if (!("matrix" %in% rClass)) {
+      inds = seq(changes$ind + 1, 1, length.out = changes$ct)
+      rColClasses = rColClasses[-inds]
+    }
+  }
+  if ("matrix" %in% rClass) {
+    nr = length(out)
+    out = unlist(out, recursive = FALSE)
+    out = unlist(lapply(out, function(x) if (is.null(x)) 
+      NA
+      else x))
+    out = matrix(out, nrow = nr, byrow = TRUE)
+    class(out) = params$rColClasses
+  }
+  else if ("data.frame" %in% rClass) {
+    nr = length(out)
+    out = unlist(out, recursive = FALSE)
+    out = unlist(lapply(out, function(x) if (is.null(x)) 
+      NA
+      else x))
+    out = matrix(out, nrow = nr, byrow = TRUE)
+    out = rhandsontable:::colClasses(as.data.frame(out, stringsAsFactors = FALSE), 
+                     rColClasses, params$columns, ...)
+    rowHeaders <- seq_len(nrow(out))
+  }
+  else {
+    stop("Conversion not implemented: ", rClass)
+  }
+  if (changes$event == "afterCreateRow") {
+    if (!("matrix" %in% rClass)) {
+      inds_logical = which(rColClasses == "logical")
+      for (i in inds_logical) out[[i]] = ifelse(is.na(out[[i]]), 
+                                                FALSE, out[[i]])
+    }
+  }
+  if (ncol(out) != length(colHeaders)) colHeaders = genColHeaders(changes, colHeaders)
+  colnames(out) = colHeaders
+  rownames(out) = rowHeaders
+  if ("data.table" %in% rClass) 
+    out = as(out, "data.table")
+  out
+}
+
+new_hot_to_r <- function(...) {
+  do.call(new_toR, ...)
+}
+
 # setup defaults
 
-holeNames <- paste('Hole',1:18, sep = ".")
+holeNames <- paste('Hole',1:18, sep = " ")
 
 teesStart <- data.frame(Tees = c("White","Blue"),
                         Slope = c(121, 126),
@@ -172,7 +237,7 @@ server <- function(input, output) {
       if (is.null(input$tees)) {
         DF <- res$tees
       } else {
-        DF <- hot_to_r(input$tees)
+        DF <- new_hot_to_r(input$tees)
       }
      rhandsontable(DF) %>% hot_col(2, format = '0') %>% 
        hot_col(3, format = '0.0') %>% hot_context_menu()
@@ -182,7 +247,7 @@ server <- function(input, output) {
      if (is.null(input$handicaps)) {
        DF <- res$indices
      } else {
-       DF <- hot_to_r(input$handicaps)
+       DF <- new_hot_to_r(input$handicaps)
      }
      rhandsontable(DF) %>% hot_context_menu(allowRowEdit = FALSE)
    })
@@ -191,7 +256,7 @@ server <- function(input, output) {
      if (is.null(input$scores)) {
        DF <- res$scores
      } else {
-       DF <- hot_to_r(input$scores)
+       DF <- new_hot_to_r(input$scores)
      }
      rhandsontable(DF) %>% hot_col(2, format = '0.0') %>% 
        hot_col(4:21, format = '0') %>% hot_context_menu(allowColEdit = FALSE)
@@ -272,7 +337,7 @@ server <- function(input, output) {
    observe({
      if (is.null(input$scores)) return(NULL)
      #print(fromJSON(input$scores))
-     if (!identical(hot_to_r(input$scores),res$scores)) {
+     if (!identical(new_hot_to_r(input$scores),res$scores)) {
        
        res$ready <- FALSE
      }
@@ -280,14 +345,14 @@ server <- function(input, output) {
    
    observe({
      if (is.null(input$tees)) return(NULL)
-     if (!identical(hot_to_r(input$tees),res$tees)) {
+     if (!identical(new_hot_to_r(input$tees),res$tees)) {
        res$ready <- FALSE
      }
    })
    
    observe({
      if (is.null(input$handicaps)) return(NULL)
-     if (!identical(hot_to_r(input$handicaps),res$indices)) {
+     if (!identical(new_hot_to_r(input$handicaps),res$indices)) {
        res$ready <- FALSE
      }
    })
