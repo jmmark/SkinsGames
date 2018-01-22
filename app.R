@@ -8,6 +8,7 @@ library(rhandsontable)
 
 
 new_toR <- function (data, changes, params, ...) {
+  #print(changes)
   rClass = params$rClass
   colHeaders = unlist(params$rColHeaders)
   rowHeaders = unlist(params$rRowHeaders)
@@ -44,7 +45,9 @@ new_toR <- function (data, changes, params, ...) {
     out = matrix(out, nrow = nr, byrow = TRUE)
     out = rhandsontable:::colClasses(as.data.frame(out, stringsAsFactors = FALSE), 
                      rColClasses, params$columns, ...)
-    rowHeaders <- seq_len(nrow(out))
+    if (length(rowHeaders) != nrow(out)) {
+      rowHeaders <- seq_len(nrow(out))
+    }
   }
   else {
     stop("Conversion not implemented: ", rClass)
@@ -197,12 +200,23 @@ ui <- fluidPage(
             rHandsontableOutput("scores"),
             br(),
             #actionButton('scores_update','Update Scores'),
-            downloadButton('save_scores', 'Save Scores'),
-            fileInput('load_scores','Load Scores',
-                      multiple = FALSE,
-                      accept = c(".csv",
-                                 "text/csv",
-                                 "text/comma-separated-values"))
+            downloadButton('save_scores', 'Download Scores'),
+            # fileInput('load_scores','Load Scores',
+            #           multiple = FALSE,
+            #           accept = c(".csv",
+            #                      "text/csv",
+            #                      "text/comma-separated-values"))
+            h4("Instructions"),
+            p("Add player name, handicap index (not course handicap), tees, and gross scores.  Make sure tees match
+              what is entered for tees exactly matches what has been entered as tee identifier 
+              on proper tab, or else players entries will be ignored.  Right-click to add 
+              additional rows, or copy-paste from a spreadsheet"),
+            br(),
+            p("Download scores frequently if entering over a protracted time, as disconnection 
+              from the server will result in loss of data.  Scores can most easily be
+              uploaded using copy/paste"),
+            br(),
+            p("Note: plus handicaps not yet supported")
           ),
           tabPanel("Skins Results",
                    actionButton('calc','Calculate Skins'),
@@ -268,16 +282,16 @@ server <- function(input, output) {
        if (is.null(input$scores)) {
          df <- res$scores
        } else {
-         df <- hot_to_r(input$scores)
+         df <- new_hot_to_r(input$scores)
        }
        write.csv(df, file, row.names = FALSE)
      }
    )
    
    observeEvent(input$calc, {
-     if (!is.null(input$tees)) res$tees <- hot_to_r(input$tees)
-     if (!is.null(input$handicaps)) res$indices <- hot_to_r(input$handicaps)
-     if (!is.null(input$scores)) res$scores <- hot_to_r(input$scores)
+     if (!is.null(input$tees)) res$tees <- new_hot_to_r(input$tees)
+     if (!is.null(input$handicaps)) res$indices <- new_hot_to_r(input$handicaps)
+     if (!is.null(input$scores)) res$scores <- new_hot_to_r(input$scores)
      gross <- res$scores
      tees <- res$tees
      
@@ -332,12 +346,13 @@ server <- function(input, output) {
      }
      res$skin_results <- skins
      res$ready <- TRUE
+     #print(skins)
    })
    
    observe({
      if (is.null(input$scores)) return(NULL)
      #print(fromJSON(input$scores))
-     if (!identical(new_hot_to_r(input$scores),res$scores)) {
+     if (!all(new_hot_to_r(input$scores) == res$scores)) {
        
        res$ready <- FALSE
      }
@@ -345,14 +360,14 @@ server <- function(input, output) {
    
    observe({
      if (is.null(input$tees)) return(NULL)
-     if (!identical(new_hot_to_r(input$tees),res$tees)) {
+     if (!all(new_hot_to_r(input$tees) == res$tees)) {
        res$ready <- FALSE
      }
    })
    
    observe({
      if (is.null(input$handicaps)) return(NULL)
-     if (!identical(new_hot_to_r(input$handicaps),res$indices)) {
+     if (!all(new_hot_to_r(input$handicaps) == res$indices)) {
        res$ready <- FALSE
      }
    })
@@ -380,6 +395,7 @@ server <- function(input, output) {
    }, digits = 3)
    
    output$skins <- renderTable({
+     #print(res$skin_results)
      if (!res$ready) return(NULL)
      res$skin_results
      
