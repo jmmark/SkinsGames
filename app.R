@@ -412,6 +412,7 @@ server <- function(input, output) {
            
          }
        }
+       colnames(skins) <- c('Player','Hole','Net Score')
        if (nrow(skins) == 0) {
          skins[1,1] <- 'No Skins'
        }
