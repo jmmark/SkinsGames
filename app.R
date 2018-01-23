@@ -85,7 +85,7 @@ indicesStart <- t(data.frame(Index = c(13,3,9,1,15,5,11,7,17,
                           row.names = holeNames))
 
 scoresStart <- data.frame(Player = c("Player A","Player B"),
-                      GHIN = c(3.2, 12.1),
+                      Index = c(3.2, 12.1),
                       Tees = c('Blue','White'),
                       c(3,4),
                       c(5,6),
@@ -106,8 +106,11 @@ scoresStart <- data.frame(Player = c("Player A","Player B"),
                       c(3,4),
                       c(3,4),
                       stringsAsFactors = FALSE)
-colnames(scoresStart) <- c('Player','GHIN','Tees',holeNames)
+colnames(scoresStart) <- c('Player','Index','Tees',holeNames)
 
+indexStart <- 50
+partialStart <- 'Yes'
+naturalStart <- 'No'
 
 strokes <- function(hcp, ch, partial, gross_trump) {
   # calculate the number of strokes
@@ -153,17 +156,18 @@ ui <- fluidPage(
           tabPanel("Game Setup",
             sliderInput("index",
                         "% of Course Handicap",
+                        post = '%',
                         min = 0,
-                        max = 1,
-                        value = 0.5),
+                        max = 100,
+                        value = indexStart),
             radioButtons("partial",
                          'Allocate Partial Strokes?',
                          choices = list('Yes','No'),
-                         selected = 'Yes'),
+                         selected = partialStart),
             radioButtons("natural",
                          'Natural Beats Net?',
                          choices = list('Yes','No'),
-                         selected = 'No'),
+                         selected = naturalStart),
             br(),
             br(),
             h4("Instructions"),
@@ -219,12 +223,28 @@ ui <- fluidPage(
             p("Note: plus handicaps not yet supported")
           ),
           tabPanel("Skins Results",
+            sidebarLayout(
+              mainPanel = mainPanel(
                    actionButton('calc','Calculate Skins'),
                    br(),
                     #tableOutput("nets"),
                     tableOutput("skins"),
                     textOutput("winners")
-                   )
+                   ),
+            
+              sidebarPanel = sidebarPanel(
+                h4('Setup Check:'),
+                textOutput("holes_valid"),
+                br(),
+                textOutput("tees_valid"),
+                br(),
+                textOutput("ghin_valid"),
+                br(),
+                textOutput("tees_selected")
+              ),
+            position = 'right'
+          )
+          
         )
       #)
       
@@ -236,7 +256,8 @@ ui <- fluidPage(
       #    textOutput("winners")
       # )
    #)
-)
+))
+
 
 # Define server logic required to draw a histogram
 server <- function(input, output) {
@@ -245,7 +266,57 @@ server <- function(input, output) {
                         indices = indicesStart,
                         scores = scoresStart,
                         net_results = NULL, skin_results = NULL,
+                        index = indexStart,
+                        partial = partialStart,
+                        natural = naturalStart,
                         ready = FALSE)
+  
+  output$holes_valid <- renderText({
+    if(!res$ready) return(NULL)
+    entered_in <- res$indices[1,]
+    if(all(entered_in %in% 1:18)) {
+      return("Hole Indices OK")
+    } else {
+      return("Problem with Hole Indices")
+    }
+  })
+  
+  output$tees_valid <- renderText({
+    if(!res$ready) return(NULL)
+    entered_in <- res$tees
+    tees_good <- TRUE
+    if (sum(is.na(entered_in)) > 0) tees_good <- FALSE
+    
+    if (sum(entered_in[,2] <= 100 | entered_in[,2] >= 200) > 0) tees_good <- FALSE
+    
+    if (sum(entered_in[,3] <= 60 | entered_in[,3] >= 90) > 0) tees_good <- FALSE
+    
+    if(tees_good) {
+      return("Tees Setup OK")
+    } else {
+      return("Problem with Tees Setup")
+    }
+  })
+  
+  output$ghin_valid <- renderText({
+    if(!res$ready) return(NULL)
+    entered_in <- res$scores$Index
+    if(sum(is.na(entered_in)) == 0 & is.numeric(entered_in)) {
+      return("Player Handicap Indices OK")
+    } else {
+      return("Problem with Player Handicap Indices")
+    }
+  })
+  
+  output$tees_selected <- renderText({
+    if(!res$ready) return(NULL)
+    if(all(res$scores$Tees %in% res$tees$Tees)) {
+      return("Player Tee Selections OK")
+    } else {
+      return("Problem with Player Tee Selections")
+    }
+  })
+  
    
    output$tees <- renderRHandsontable({
       if (is.null(input$tees)) {
@@ -292,14 +363,17 @@ server <- function(input, output) {
      if (!is.null(input$tees)) res$tees <- new_hot_to_r(input$tees)
      if (!is.null(input$handicaps)) res$indices <- new_hot_to_r(input$handicaps)
      if (!is.null(input$scores)) res$scores <- new_hot_to_r(input$scores)
+     res$index <- input$index
+     res$partial <- input$partial
+     res$natural <- input$natural
      gross <- res$scores
      tees <- res$tees
      
      indices <- res$indices
      gross <- merge(gross,tees)
      gross$diff_tee_adjust <- round(gross$Rating - min(gross$Rating, na.rm = TRUE))
-     gross$CH <- round(gross$GHIN * (gross$Slope / 113)) + gross$diff_tee_adjust
-     gross$a_CH <- gross$CH * input$index
+     gross$CH <- round(gross$Index * (gross$Slope / 113)) + gross$diff_tee_adjust
+     gross$a_CH <- gross$CH * res$index / 100
      n_players <- length(gross$a_CH)
      mask <- matrix(nrow = n_players, ncol = 18)
      
@@ -311,8 +385,8 @@ server <- function(input, output) {
      for (i in 1:n_players) {
        for (j in 1:18) {
          mask[i,j] <- strokes(indices[,j], gross$a_CH[i],
-                              input$partial == 'Yes', 
-                              input$natural == 'Yes')
+                              res$partial == 'Yes', 
+                              res$natural == 'Yes')
        }
      }
      
@@ -372,6 +446,24 @@ server <- function(input, output) {
      }
    })
    
+   observe({
+     if (input$index != res$index) {
+       res$ready <- FALSE
+     }
+   })
+   
+   observe({
+     if (input$partial != res$partial) {
+       res$ready <- FALSE
+     }
+   })
+   
+   observe({
+     if (input$natural != res$natural) {
+       res$ready <- FALSE
+     }
+   })
+   
    # update changed tees
    # observeEvent(input$tees_update,{
    #   res$tees <- hot_to_r(input$tees)
@@ -404,7 +496,7 @@ server <- function(input, output) {
    output$winners <- renderText({
      st <- res$skin_results
      if (!res$ready) {
-       return("Game Setup Incomplete")
+       return("Calculation Needed")
      }
      
      return(paste("A total of ",nrow(st), "skins won"))
